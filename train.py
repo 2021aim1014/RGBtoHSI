@@ -63,7 +63,7 @@ def validate():
     total_loss = 0.0
     with torch.no_grad():
         for images, labels in val_loader:
-            # images, labels = map(lambda x: x.cuda(), [images, labels])
+            images, labels = map(lambda x: x.cuda(), [images, labels])
             output = model(images)
             loss = torch.nn.functional.mse_loss(output, labels)
             total_loss += loss.item()
@@ -80,7 +80,7 @@ def train():
     while iteration < CONFIG["total_iteration"]:
         model.train()
         for images, labels in train_loader:
-            # images, labels = map(lambda x: Variable(x.cuda()), [images, labels])
+            images, labels = map(lambda x: Variable(x.cuda()), [images, labels])
             optimizer.zero_grad()
             output = model(images)
             loss = torch.nn.functional.mse_loss(output, labels)
