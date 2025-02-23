@@ -2,13 +2,12 @@ from torch.utils.data import Dataset
 import numpy as np
 import random
 import cv2
-import h5py
 import os
 import spectral
 import matplotlib.pyplot as plt
 
 class TrainDataset(Dataset):
-    def __init__(self, data_root='dataset/pear dataset/train_dataset/', crop_size=128, arg=True, bgr2rgb=True, stride=8):
+    def __init__(self, data_root='dataset/pear dataset/train_dataset/', crop_size=128, arg=True, bgr2rgb=True, stride=128):
         self.crop_size = crop_size 
         self.hypers = [] #cropped hsi data
         self.bgrs = []   # cropped rgb data
@@ -22,7 +21,7 @@ class TrainDataset(Dataset):
         dataset_list = os.listdir(data_root)
 
         for image_folder in dataset_list:
-            if image_folder == '.DS_Store':
+            if image_folder == '.DS_Store' or image_folder == 'Readme.md':
                 continue
             file_path = data_root+image_folder
             rgb_path = file_path + '/' + image_folder + '.png'
@@ -77,7 +76,9 @@ class TrainDataset(Dataset):
         return np.ascontiguousarray(bgr), np.ascontiguousarray(hyper)
 
     def __len__(self):
-        return self.patch_per_img*self.img_num
+        return self.patch_per_img * self.img_num
+
+
 
 class ValidDataset(Dataset):
     def __init__(self, data_root='dataset/pear dataset/val_dataset/', bgr2rgb=True):
@@ -88,7 +89,7 @@ class ValidDataset(Dataset):
         print(' Validation Dataset')
 
         for image_folder in dataset_list:
-            if image_folder == '.DS_Store':
+            if image_folder == '.DS_Store' or image_folder == 'Readme.md':
                 continue
             file_path = data_root+image_folder
             rgb_path = file_path + '/' + image_folder + '.png'
@@ -116,3 +117,10 @@ class ValidDataset(Dataset):
 
     def __len__(self):
         return len(self.hypers)
+
+if __name__ == "__main__:
+    train_data = TrainDataset()
+    len(train_data)
+    
+    val_dataset = ValidDataset()
+    len(val_dataset)
