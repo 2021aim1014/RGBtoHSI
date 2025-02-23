@@ -1,152 +1,99 @@
+import os
 import torch
 import torch.nn as nn
-import argparse
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
-import os
-from hsi_pear_dataset import TrainDataset, ValidDataset
-from architecture import *
-from utils import AverageMeter, initialize_logger, save_checkpoint, record_loss, \
-    time2file_name, Loss_MRAE, Loss_RMSE, Loss_PSNR
 import datetime
+from hsi_dataset import TrainDataset, ValidDataset
+from architecture import model_generator
 
-method='mst_plus_plus'
-pretrained_model_path = None
-batch_size=20
-end_epoch=300
-init_lr=4e4
-outf='./exp/mst_plus_plus/'
-data_root='../dataset/pear dataset/train_dataset/'
-val_data_root='../dataset/pear dataset/val_dataset/'
-patch_size=128
-stride=8
-gpu_id='0'
-os.environ["CUDA_DEVICE_ORDER"] = 'PCI_BUS_ID'
-os.environ["CUDA_VISIBLE_DEVICES"] =  gpu_id
+# Configuration
+CONFIG = {
+    "method": "mirnet",
+    "pretrained_model_path": None,
+    "batch_size": 2,
+    "epochs": 100,
+    "learning_rate": 4e-4,
+    "output_dir": "./exp/mst_plus_plus/",
+    "data_root": "dataset/pear dataset/train_dataset/",
+    "val_data_root": "dataset/pear dataset/val_dataset/",
+    "patch_size": 128,
+    "stride": 128,
+    "gpu_id": "0",
+    "per_epoch_iteration": 1,
+}
+CONFIG["total_iteration"] = CONFIG["per_epoch_iteration"] * CONFIG["epochs"]
 
-# load dataset
-print("\nloading dataset ...")
-train_data = TrainDataset(data_root= data_root, crop_size= patch_size, bgr2rgb=True, arg=True, stride= stride)
-print(f"Iteration per epoch: {len(train_data)}")
-val_data = ValidDataset(data_root= val_data_root, bgr2rgb=True)
-print("Validation set samples: ", len(val_data))
+# Setup CUDA
+torch.cuda.set_device(int(CONFIG["gpu_id"])) if torch.cuda.is_available() else None
 
-# iterations
-per_epoch_iteration = 1000
-total_iteration = per_epoch_iteration* end_epoch
+# Load dataset
+print("\nLoading dataset...")
+train_data = TrainDataset(
+    data_root=CONFIG["data_root"], crop_size=CONFIG["patch_size"], bgr2rgb=True, arg=True, stride=CONFIG["stride"]
+)
+val_data = ValidDataset(data_root=CONFIG["val_data_root"], bgr2rgb=True)
+print(f"Train samples: {len(train_data)}, Validation samples: {len(val_data)}")
 
-# loss function
-criterion_mrae = Loss_MRAE()
-criterion_rmse = Loss_RMSE()
-criterion_psnr = Loss_PSNR()
-
-# model
-pretrained_model_path =  pretrained_model_path
-method =  method
-# model = model_generator(method, pretrained_model_path).cuda()
-model = model_generator(method, pretrained_model_path)
-print('Parameters number is ', sum(param.numel() for param in model.parameters()))
-
-# output path
-date_time = str(datetime.datetime.now())
-date_time = time2file_name(date_time)
-outf =  outf + date_time
-if not os.path.exists( outf):
-    os.makedirs( outf)
-
+# Model setup
+model = model_generator(CONFIG["method"], CONFIG["pretrained_model_path"])
+print(f'Number of parameters: {sum(p.numel() for p in model.parameters())}')
 if torch.cuda.is_available():
-    model.cuda()
-    criterion_mrae.cuda()
-    criterion_rmse.cuda()
-    criterion_psnr.cuda()
-
+    model = model.cuda()
 if torch.cuda.device_count() > 1:
     model = nn.DataParallel(model)
 
-optimizer = optim.Adam(model.parameters(), lr= init_lr, betas=(0.9, 0.999))
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, total_iteration, eta_min=1e-6)
+# Optimizer & Scheduler
+optimizer = optim.Adam(model.parameters(), lr=CONFIG["learning_rate"], betas=(0.9, 0.999))
+scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, CONFIG["total_iteration"], eta_min=1e-6)
 
-# logging
-log_dir = os.path.join( outf, 'train.log')
-logger = initialize_logger(log_dir)
+# Resume from checkpoint
+if CONFIG["pretrained_model_path"] and os.path.isfile(CONFIG["pretrained_model_path"]):
+    print(f"Loading checkpoint: {CONFIG['pretrained_model_path']}")
+    checkpoint = torch.load(CONFIG["pretrained_model_path"])
+    model.load_state_dict(checkpoint["state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
 
-# Resume
-resume_file =  pretrained_model_path
-if resume_file is not None:
-    if os.path.isfile(resume_file):
-        print("=> loading checkpoint '{}'".format(resume_file))
-        checkpoint = torch.load(resume_file)
-        start_epoch = checkpoint['epoch']
-        iteration = checkpoint['iter']
-        model.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-
-# Validate
-def validate(val_loader, model):
+# Validation function
+def validate():
     model.eval()
-    losses_mrae = AverageMeter()
-    losses_rmse = AverageMeter()
-    losses_psnr = AverageMeter()
-    for i, (input, target) in enumerate(val_loader):
-        input = input.cuda()
-        target = target.cuda()
-        with torch.no_grad():
-            # compute output
-            output = model(input)
-            loss_mrae = criterion_mrae(output[:, :, 128:-128, 128:-128], target[:, :, 128:-128, 128:-128])
-            loss_rmse = criterion_rmse(output[:, :, 128:-128, 128:-128], target[:, :, 128:-128, 128:-128])
-            loss_psnr = criterion_psnr(output[:, :, 128:-128, 128:-128], target[:, :, 128:-128, 128:-128])
-        # record loss
-        losses_mrae.update(loss_mrae.data)
-        losses_rmse.update(loss_rmse.data)
-        losses_psnr.update(loss_psnr.data)
-    return losses_mrae.avg, losses_rmse.avg, losses_psnr.avg
+    val_loader = DataLoader(val_data, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
+    total_loss = 0.0
+    with torch.no_grad():
+        for images, labels in val_loader:
+            # images, labels = map(lambda x: x.cuda(), [images, labels])
+            output = model(images)
+            loss = torch.nn.functional.mse_loss(output, labels)
+            total_loss += loss.item()
+    avg_loss = total_loss / len(val_loader)
+    print(f"Validation Loss: {avg_loss:.9f}")
+    return avg_loss
 
-def main():
+# Training function
+def train():
     cudnn.benchmark = True
     iteration = 0
-    record_mrae_loss = 1000
-    while iteration<total_iteration:
+    train_loader = DataLoader(train_data, batch_size=CONFIG["batch_size"], shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
+    
+    while iteration < CONFIG["total_iteration"]:
         model.train()
-        losses = AverageMeter()
-        train_loader = DataLoader(dataset=train_data, batch_size= batch_size, shuffle=True, num_workers=2,
-                                  pin_memory=True, drop_last=True)
-        val_loader = DataLoader(dataset=val_data, batch_size=1, shuffle=False, num_workers=2, pin_memory=True)
-        for i, (images, labels) in enumerate(train_loader):
-            labels = labels.cuda()
-            images = images.cuda()
-            images = Variable(images)
-            labels = Variable(labels)
-            lr = optimizer.param_groups[0]['lr']
+        for images, labels in train_loader:
+            # images, labels = map(lambda x: Variable(x.cuda()), [images, labels])
             optimizer.zero_grad()
             output = model(images)
-            loss = criterion_mrae(output, labels)
+            loss = torch.nn.functional.mse_loss(output, labels)
             loss.backward()
             optimizer.step()
             scheduler.step()
-            losses.update(loss.data)
-            iteration = iteration+1
-            if iteration % 20 == 0:
-                print('[iter:%d/%d],lr=%.9f,train_losses.avg=%.9f'
-                      % (iteration, total_iteration, lr, losses.avg))
-            if iteration % 1000 == 0:
-                mrae_loss, rmse_loss, psnr_loss = validate(val_loader, model)
-                print(f'MRAE:{mrae_loss}, RMSE: {rmse_loss}, PNSR:{psnr_loss}')
-                # Save model
-                if torch.abs(mrae_loss - record_mrae_loss) < 0.01 or mrae_loss < record_mrae_loss or iteration % 5000 == 0:
-                    print(f'Saving to { outf}')
-                    save_checkpoint( outf, (iteration // 1000), iteration, model, optimizer)
-                    if mrae_loss < record_mrae_loss:
-                        record_mrae_loss = mrae_loss
-                # print loss
-                print(" Iter[%06d], Epoch[%06d], learning rate : %.9f, Train MRAE: %.9f, Test MRAE: %.9f, "
-                      "Test RMSE: %.9f, Test PSNR: %.9f " % (iteration, iteration//1000, lr, losses.avg, mrae_loss, rmse_loss, psnr_loss))
-                logger.info(" Iter[%06d], Epoch[%06d], learning rate : %.9f, Train Loss: %.9f, Test MRAE: %.9f, "
-                      "Test RMSE: %.9f, Test PSNR: %.9f " % (iteration, iteration//1000, lr, losses.avg, mrae_loss, rmse_loss, psnr_loss))
-    return 0
+            iteration += 1
+            
+            # if iteration % 20 == 0:
+            print(f"[Iter:{iteration}/{CONFIG['total_iteration']}], lr={optimizer.param_groups[0]['lr']:.9f}, train_loss={loss.item():.9f}")
+            
+            if iteration % 10 == 0:
+                validate()
 
-if __name__ == '__main__':
-    main()
-    print(torch.__version__)
+if __name__ == "__main__":
+    train()
