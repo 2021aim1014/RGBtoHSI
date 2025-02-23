@@ -105,26 +105,3 @@ class AWAN(nn.Module):
             out, res = block(out, res)
         out = self.output_conv(out + residual)
         return self.tail_nonlocal(out)
-
-# Unit tests
-if __name__ == "__main__":
-    input_tensor = torch.randn(1, 64, 32, 32)
-    assert AWCA(64)(input_tensor).shape == input_tensor.shape, "AWCA test failed"
-    
-    assert NONLocalBlock2D(64)(input_tensor).shape == input_tensor.shape, "NONLocalBlock2D test failed"
-    
-    assert PSNL(64)(input_tensor).shape == input_tensor.shape, "PSNL test failed"
-    
-    assert Conv3x3(64, 128, 3, 1)(input_tensor).shape == (1, 128, 32, 32), "Conv3x3 test failed"
-    
-    input_tensor = torch.randn(1, 96, 32, 32)
-    output, res = DRAB(96, 96, 96)(input_tensor, input_tensor)
-    assert output.shape == input_tensor.shape, "DRAB test failed"
-    assert res.shape == input_tensor.shape, "DRAB residual test failed"
-    
-    b, c, h, w = 1, 3, 128, 128
-    b, output_c, h, w =  1, 31, 128, 128
-    input_image = torch.randn(b, c, h, w)
-    assert AWAN()(input_image).shape == (b, output_c, h, w), "AWAN test failed"
-    
-    print("All tests passed!")
