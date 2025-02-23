@@ -1,15 +1,15 @@
 import torch
-from edsr import EDSR
-from HDNet import HDNet
-from hinet import HINet
-from hrnet import SGN
-from HSCNN_Plus import HSCNN_Plus
-from MIRNet import MIRNet
-from MPRNet import MPRNet
-from MST import MST
-from MST_Plus_Plus import MST_Plus_Plus
-from Restormer import Restormer
-from AWAN import AWAN
+from .edsr import EDSR
+from .HDNet import HDNet
+from .hinet import HINet
+from .hrnet import SGN
+from .HSCNN_Plus import HSCNN_Plus
+from .MIRNet import MIRNet
+from .MPRNet import MPRNet
+from .MST import MST
+from .MST_Plus_Plus import MST_Plus_Plus
+from .Restormer import Restormer
+from .AWAN import AWAN
 
 def model_generator(method, pretrained_model_path=None):
     if method == 'mirnet':
