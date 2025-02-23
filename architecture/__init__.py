@@ -13,27 +13,27 @@ from .AWAN import AWAN
 
 def model_generator(method, pretrained_model_path=None):
     if method == 'mirnet':
-        model = MIRNet(n_RRG=3, n_MSRB=1, height=3, width=1).cuda()
+        model = MIRNet(n_RRG=3, n_MSRB=1, height=3, width=1)
     elif method == 'mst_plus_plus':
         model = MST_Plus_Plus()
     elif method == 'mst':
-        model = MST(dim=31, stage=2, num_blocks=[4, 7, 5]).cuda()
+        model = MST(dim=31, stage=2, num_blocks=[4, 7, 5])
     elif method == 'hinet':
-        model = HINet(depth=4).cuda()
+        model = HINet(depth=4)
     elif method == 'mprnet':
-        model = MPRNet(num_cab=4).cuda()
+        model = MPRNet(num_cab=4)
     elif method == 'restormer':
-        model = Restormer().cuda()
+        model = Restormer()
     elif method == 'edsr':
-        model = EDSR().cuda()
+        model = EDSR()
     elif method == 'hdnet':
-        model = HDNet().cuda()
+        model = HDNet()
     elif method == 'hrnet':
-        model = SGN().cuda()
+        model = SGN()
     elif method == 'hscnn_plus':
-        model = HSCNN_Plus().cuda()
+        model = HSCNN_Plus()
     elif method == 'awan':
-        model = AWAN().cuda()
+        model = AWAN()
     else:
         print(f'Method {method} is not defined !!!!')
     if pretrained_model_path is not None:
