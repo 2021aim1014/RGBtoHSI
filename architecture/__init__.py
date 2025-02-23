@@ -42,3 +42,15 @@ def model_generator(method, pretrained_model_path=None):
         model.load_state_dict({k.replace('module.', ''): v for k, v in checkpoint['state_dict'].items()},
                               strict=True)
     return model
+
+if __name__ == "__main__":
+    methods = ['mirnet', 'mst_plus_plus', 'mst', 'hinet', 'mprnet', 'restormer', 'edsr', 'hdnet', 'hrnet', 'hscnn_plus', 'awan']
+    input_shape = (2, 3, 128, 128)
+    output_shape = (2, 31, 128, 128)
+    X = torch.rand(input_shape)
+
+    for method in methods:
+        model = model_generator(method)
+        output_shape = model(X)
+        print(f"Model Name: {method}, input shape: {input_shape}, output_shape:{output_shape.shape}")
+
