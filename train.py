@@ -8,10 +8,13 @@ from torch.autograd import Variable
 import datetime
 from hsi_dataset import TrainDataset, ValidDataset
 from architecture import model_generator
+import csv
+import os
 
 # Configuration
 CONFIG = {
     "method": "mirnet",
+    "spectral-range":"0-31",
     "pretrained_model_path": None,
     "batch_size": 2,
     "epochs": 100,
@@ -71,12 +74,32 @@ def validate():
     print(f"Validation Loss: {avg_loss:.9f}")
     return avg_loss
 
+def save_to_file(method, spectral, loss_list):
+    # Ensure 'results' directory exists
+    os.makedirs('results', exist_ok=True)
+
+    # Construct filename
+    filename = f"results/{method}_{spectral}.csv"
+
+    # Write to CSV file
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        
+        # Write header
+        writer.writerow(['epoch', 'train_loss', 'val_loss'])
+        
+        # Write each row from loss_list
+        for epoch, train_loss, val_loss in loss_list:
+            writer.writerow([epoch, train_loss, val_loss])
+
+    print(f"Saved results to {filename}")
+
 # Training function
 def train():
     cudnn.benchmark = True
     iteration = 0
     train_loader = DataLoader(train_data, batch_size=CONFIG["batch_size"], shuffle=True, num_workers=2, pin_memory=True, drop_last=True)
-    
+    loss_list = []
     while iteration < CONFIG["total_iteration"]:
         model.train()
         for images, labels in train_loader:
@@ -89,11 +112,10 @@ def train():
             scheduler.step()
             iteration += 1
             
-            # if iteration % 20 == 0:
-            print(f"[Iter:{iteration}/{CONFIG['total_iteration']}], lr={optimizer.param_groups[0]['lr']:.9f}, train_loss={loss.item():.9f}")
-            
-            if iteration % 10 == 0:
-                validate()
-
+            if iteration % 1000 == 0:
+                print(f"[Iter:{iteration}/{CONFIG['total_iteration']}], lr={optimizer.param_groups[0]['lr']:.9f}, train_loss={loss.item():.9f}")
+                val_loss = validate()
+                loss_list.append([iteration, loss.item(), val_loss.item()])
+    save_to_file(CONFIG["method"], CONFIG["spectral-range"], loss_list)
 if __name__ == "__main__":
     train()
