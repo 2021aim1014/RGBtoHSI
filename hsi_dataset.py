@@ -7,7 +7,8 @@ import spectral
 import matplotlib.pyplot as plt
 
 class TrainDataset(Dataset):
-    def __init__(self, data_root='dataset/pear dataset/train_dataset/', crop_size=128, arg=True, bgr2rgb=True, stride=64):
+    def __init__(self, data_root='dataset/pear dataset/train_dataset/', crop_size=128, arg=True, 
+                 bgr2rgb=True, stride=64, start_channel=0, end_channel=31):
         self.crop_size = crop_size 
         self.hypers = [] #cropped hsi data
         self.bgrs = []   # cropped rgb data
@@ -38,7 +39,7 @@ class TrainDataset(Dataset):
             self.bgrs.append(bgr)
 
             hyper = spectral.open_image(hsi_path).load()
-            hyper = hyper[:, :, :31]
+            hyper = hyper[:, :, start_channel:end_channel]
             hyper = np.transpose(hyper, (2, 1, 0)) # [204, 512, 512] 
             self.hypers.append(hyper)
 
@@ -82,7 +83,8 @@ class TrainDataset(Dataset):
 
 
 class ValidDataset(Dataset):
-    def __init__(self, data_root='dataset/pear dataset/val_dataset/', bgr2rgb=True):
+    def __init__(self, data_root='dataset/pear dataset/val_dataset/', bgr2rgb=True, 
+                 start_channel=0, end_channel=31):
         self.hypers = [] #cropped hsi data
         self.bgrs = []   # cropped rgb data
 
@@ -107,7 +109,7 @@ class ValidDataset(Dataset):
             self.bgrs.append(bgr)
 
             hyper = spectral.open_image(hsi_path).load()
-            hyper = hyper[:, :, :31]
+            hyper = hyper[:, :, start_channel:end_channel]
             hyper = np.transpose(hyper, (2, 1, 0)) # [204, 512, 512] 
             self.hypers.append(hyper)
 
