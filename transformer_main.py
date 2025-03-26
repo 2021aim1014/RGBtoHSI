@@ -5,7 +5,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 import os
-from hsi_dataset import TrainDataset, ValidDataset
+from hsi_dataset_for_transformer import TrainDataset, ValidDataset
 from utils import AverageMeter, initialize_logger, save_checkpoint, record_loss, time2file_name, Loss_MRAE, Loss_RMSE, Loss_PSNR
 import matplotlib.pyplot as plt
 import numpy as np
